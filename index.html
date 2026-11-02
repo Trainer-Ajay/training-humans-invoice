@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRAINING HUMANS - Invoice Generator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdfa',
+                            100: '#ccfbf1',
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            800: '#115e59',
+                            900: '#134e4a',
+                            navy: '#0f172a',
+                            slate: '#1e293b'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts & FontAwesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Print styles for clean, single/multi page PDF export */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            body {
+                background-color: white !important;
+                color: black !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .print-container {
+                box-shadow: none !important;
+                border: none !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 !important;
+                padding: 1.5cm !important;
+            }
+            @page {
+                size: A4;
+                margin: 0;
+            }
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-800">
+
+    <!-- Top Navigation / Header -->
+    <header class="bg-slate-900 text-white border-b border-slate-800 no-print sticky top-0 z-30 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-slate-900 font-black text-xl shadow-md">
+                    TH
+                </div>
+                <div>
+                    <h1 class="font-bold tracking-wider text-lg leading-tight text-white">TRAINING HUMANS</h1>
+                    <p class="text-xs text-teal-400 font-medium">Enterprise Invoice Suite</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <button onclick="createNewInvoice()" class="px-3.5 py-1.5 rounded-lg text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-2">
+                    <i class="fa-solid fa-plus text-teal-400"></i> New Invoice
+                </button>
+                <button onclick="toggleHistoryModal()" class="px-3.5 py-1.5 rounded-lg text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-teal-400"></i> Saved Invoices
+                </button>
+                <button onclick="window.print()" class="px-4 py-1.5 rounded-lg text-sm font-semibold bg-teal-500 hover:bg-teal-400 text-slate-900 shadow-md transition flex items-center gap-2">
+                    <i class="fa-solid fa-print"></i> Print / Save PDF
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-8">
+        
+        <!-- EDITOR PANEL (No Print) -->
+        <div class="w-full lg:w-1/2 space-y-6 no-print overflow-y-auto max-h-[calc(100vh-6rem)] pr-1">
+            
+            <!-- Quick Actions & Template Presets -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b pb-3 border-slate-100">
+                    <h2 class="font-semibold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-teal-600"></i> Generator Settings
+                    </h2>
+                    <span id="seqCounterBadge" class="text-xs font-mono bg-teal-50 text-teal-700 border border-teal-200 px-2.5 py-1 rounded-full font-semibold">
+                        Seq: TH-INV-2026-001
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Saved Clients</label>
+                        <select id="clientPresetSelect" onchange="loadSavedClient(this.value)" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                            <option value="">-- Select Client Preset --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Company Logo</label>
+                        <input type="file" id="logoUpload" accept="image/*" onchange="handleLogoUpload(event)" class="hidden">
+                        <div class="flex gap-2">
+                            <button onclick="document.getElementById('logoUpload').click()" class="flex-1 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs py-2 px-2 rounded-lg font-medium transition text-center truncate">
+                                <i class="fa-solid fa-upload mr-1"></i> Upload Custom
+                            </button>
+                            <button onclick="resetDefaultLogo()" class="bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-600 text-xs py-2 px-2 rounded-lg font-medium transition" title="Reset Default Logo">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Header & Invoice Metadata -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <h2 class="font-semibold text-slate-900 border-b pb-2 border-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-file-invoice text-teal-600"></i> Invoice Meta & Dates
+                </h2>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Invoice Number</label>
+                        <input type="text" id="invNumber" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono font-semibold text-teal-800 focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Invoice Date</label>
+                        <input type="date" id="invDate" onchange="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Due Date</label>
+                        <input type="date" id="dueDate" onchange="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Payment Terms</label>
+                    <input type="text" id="payTerms" placeholder="e.g. Due on Receipt, Net 15, Net 30" oninput="updatePreview()" value="Payment due within 15 days of invoice date" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Issuer (Billed From) -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                <h2 class="font-semibold text-slate-900 border-b pb-2 border-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-building text-teal-600"></i> Billed From (Provider)
+                </h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Provider Name</label>
+                        <input type="text" id="fromName" value="TRAINING HUMANS PVT LTD" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">GSTIN / Tax ID</label>
+                        <input type="text" id="fromGst" value="07AAAAA0000A1Z5" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Address</label>
+                        <input type="text" id="fromAddress" value="Suite 402, Corporate Tower B, Cyber City, Gurugram, HR - 122002" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Email Address</label>
+                        <input type="email" id="fromEmail" value="billing@traininghumans.com" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Phone Number</label>
+                        <input type="text" id="fromPhone" value="+91 98765 43210" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Client (Billed To) -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                <div class="flex items-center justify-between border-b pb-2 border-slate-100">
+                    <h2 class="font-semibold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-user-tag text-teal-600"></i> Billed To (Client Details)
+                    </h2>
+                    <button onclick="saveCurrentClient()" class="text-xs text-teal-600 hover:text-teal-800 font-semibold flex items-center gap-1">
+                        <i class="fa-solid fa-bookmark"></i> Save Client
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Client Company / Name</label>
+                        <input type="text" id="toName" placeholder="Acme Technologies Corp" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Client GSTIN / Tax ID</label>
+                        <input type="text" id="toGst" placeholder="27AAABC1234H1ZD" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Client Address</label>
+                        <input type="text" id="toAddress" placeholder="Level 5, Innovation Hub, BKC, Mumbai, MH - 400051" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Client Contact Email</label>
+                        <input type="email" id="toEmail" placeholder="accounts@acme.com" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Contact Person / Phone</label>
+                        <input type="text" id="toPhone" placeholder="Attn: Rahul Sharma (+91 91234 56789)" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Line Items (Training / Services) -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b pb-2 border-slate-100">
+                    <h2 class="font-semibold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-chalkboard-user text-teal-600"></i> Training & Service Line Items
+                    </h2>
+                    <button onclick="addLineItem()" class="px-2.5 py-1 text-xs font-semibold bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 rounded-lg transition flex items-center gap-1">
+                        <i class="fa-solid fa-plus"></i> Add Item
+                    </button>
+                </div>
+
+                <div id="lineItemsContainer" class="space-y-4">
+                    <!-- Dynamic line item rows injected here -->
+                </div>
+            </div>
+
+            <!-- Taxes, Discounts & Bank Details -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                <h2 class="font-semibold text-slate-900 border-b pb-2 border-slate-100 flex items-center gap-2">
+                    <i class="fa-solid fa-calculator text-teal-600"></i> Calculations & Payment Instructions
+                </h2>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Tax Type / Rate</label>
+                        <select id="taxType" onchange="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                            <option value="18_gst">GST @ 18% (CGST 9% + SGST 9%)</option>
+                            <option value="18_igst">IGST @ 18%</option>
+                            <option value="12_gst">GST @ 12%</option>
+                            <option value="5_gst">GST @ 5%</option>
+                            <option value="0">No Tax / Tax Exempt (0%)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Discount Type</label>
+                        <select id="discountType" onchange="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                            <option value="flat">Flat Amount (₹)</option>
+                            <option value="percent">Percentage (%)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Discount Value</label>
+                        <input type="number" id="discountVal" value="0" min="0" step="any" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t border-slate-100">
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Bank Account & Remittance Notes</label>
+                    <textarea id="bankDetails" rows="3" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono focus:ring-2 focus:ring-teal-500 focus:outline-none">Bank: HDFC Bank Ltd.
+A/C Name: TRAINING HUMANS PVT LTD
+A/C No: 50200012345678 | IFSC: HDFC0000123
+UPI ID: traininghumans@hdfcbank</textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Notes / Terms & Conditions</label>
+                    <textarea id="notes" rows="2" oninput="updatePreview()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none">1. All training content is proprietary to Training Humans.
+2. Payment to be made via direct wire transfer or UPI.
+3. Late payments are subject to 1.5% interest per month.</textarea>
+                </div>
+            </div>
+
+            <!-- Save & Action Controls -->
+            <div class="flex items-center gap-3 pt-2">
+                <button onclick="saveInvoiceToHistory()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold py-2.5 px-4 rounded-xl shadow transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-floppy-disk"></i> Save To Local Storage
+                </button>
+            </div>
+        </div>
+
+        <!-- PREVIEW PANEL (Print Target) -->
+        <div class="w-full lg:w-1/2 flex flex-col items-center">
+            
+            <div class="w-full flex items-center justify-between mb-3 no-print">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                    Live Document Preview
+                </span>
+                <span class="text-xs text-slate-400">A4 Format Standard</span>
+            </div>
+
+            <!-- Printed Document Sheet -->
+            <div id="invoiceSheet" class="print-container bg-white w-full shadow-2xl rounded-xl border border-slate-200 p-8 sm:p-10 text-slate-800 flex flex-col justify-between min-h-[842px] relative overflow-hidden transition-all">
+                
+                <!-- Decorative Top Accent Bar -->
+                <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-slate-900 via-teal-600 to-teal-400"></div>
+
+                <div>
+                    <!-- Sheet Header: Brand Logo & Title -->
+                    <div class="flex justify-between items-start pb-8 border-b border-slate-200">
+                        <div class="flex items-start gap-4">
+                            <!-- SVG/Uploaded Logo Container -->
+                            <div id="previewLogo" class="w-16 h-16 rounded-xl bg-slate-900 flex items-center justify-center text-teal-400 text-2xl font-black shadow-inner overflow-hidden shrink-0">
+                                <span id="previewLogoText">TH</span>
+                                <img id="previewLogoImg" class="w-full h-full object-contain hidden" alt="Logo">
+                            </div>
+                            <div>
+                                <h2 id="prevFromName" class="text-xl font-bold tracking-tight text-slate-900 leading-tight">TRAINING HUMANS PVT LTD</h2>
+                                <p id="prevFromAddress" class="text-xs text-slate-500 mt-1 max-w-xs leading-relaxed">Suite 402, Corporate Tower B, Cyber City, Gurugram, HR</p>
+                                <div class="text-[11px] text-slate-500 mt-1 flex flex-wrap gap-x-3">
+                                    <span id="prevFromEmail">billing@traininghumans.com</span>
+                                    <span id="prevFromPhone">+91 98765 43210</span>
+                                </div>
+                                <div id="prevFromGstWrap" class="text-[11px] font-mono text-slate-600 mt-0.5">
+                                    GSTIN: <span id="prevFromGst">07AAAAA0000A1Z5</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-right">
+                            <span class="inline-block px-3 py-1 rounded bg-slate-100 text-slate-800 font-bold text-xs uppercase tracking-widest mb-2">TAX INVOICE</span>
+                            <div class="font-mono text-lg font-bold text-teal-700" id="prevInvNumber">TH-INV-2026-001</div>
+                            <div class="text-xs text-slate-500 mt-1">
+                                Date: <span id="prevInvDate" class="font-medium text-slate-700">Nov 02, 2026</span>
+                            </div>
+                            <div class="text-xs text-slate-500">
+                                Due: <span id="prevDueDate" class="font-medium text-slate-700">Nov 17, 2026</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bill To Details Bar -->
+                    <div class="grid grid-cols-2 gap-6 my-6 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">BILLED TO (CLIENT)</p>
+                            <p id="prevToName" class="font-bold text-sm text-slate-900">Client Company Name</p>
+                            <p id="prevToAddress" class="text-xs text-slate-600 mt-0.5 leading-relaxed">Client Full Address Details</p>
+                            <p id="prevToPhone" class="text-xs text-slate-500 mt-1">Contact Details</p>
+                        </div>
+                        <div class="text-right space-y-1">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">TAX & PAYMENT INFO</p>
+                            <div id="prevToGstWrap" class="text-xs text-slate-600">
+                                Client GSTIN: <span id="prevToGst" class="font-mono font-medium">N/A</span>
+                            </div>
+                            <div class="text-xs text-slate-600">
+                                Terms: <span id="prevPayTerms" class="font-medium">Due on Receipt</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Line Items Table -->
+                    <div class="overflow-hidden my-6">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="border-b-2 border-slate-900 text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                                    <th class="py-2.5 px-2">#</th>
+                                    <th class="py-2.5 px-2">Training Module / Item</th>
+                                    <th class="py-2.5 px-2 text-center">Qty / Hrs</th>
+                                    <th class="py-2.5 px-2 text-right">Rate (₹)</th>
+                                    <th class="py-2.5 px-2 text-right">Amount (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="prevTableBody" class="divide-y divide-slate-100 text-xs">
+                                <!-- Dynamic dynamic rendering -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Calculation Summary Block -->
+                    <div class="flex flex-col sm:flex-row justify-between items-start pt-4 border-t border-slate-200 gap-6">
+                        <!-- Left: Bank Details -->
+                        <div class="w-full sm:w-1/2 space-y-2">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">REMITTANCE / BANK DETAILS</p>
+                            <pre id="prevBankDetails" class="text-[11px] font-mono text-slate-600 whitespace-pre-wrap leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-100">Bank Details</pre>
+                        </div>
+
+                        <!-- Right: Totals -->
+                        <div class="w-full sm:w-1/2 space-y-1.5 text-xs">
+                            <div class="flex justify-between text-slate-600 py-0.5">
+                                <span>Subtotal</span>
+                                <span id="prevSubtotal" class="font-mono font-medium">₹0.00</span>
+                            </div>
+                            <div id="prevDiscountRow" class="flex justify-between text-emerald-600 py-0.5 hidden">
+                                <span id="prevDiscountLabel">Discount</span>
+                                <span id="prevDiscountVal" class="font-mono font-medium">-₹0.00</span>
+                            </div>
+                            <div id="prevTaxRow" class="flex justify-between text-slate-600 py-0.5">
+                                <span id="prevTaxLabel">GST (18%)</span>
+                                <span id="prevTaxVal" class="font-mono font-medium">₹0.00</span>
+                            </div>
+                            <div class="flex justify-between text-slate-900 font-bold text-sm pt-2 border-t border-slate-900">
+                                <span>Total Amount Payable</span>
+                                <span id="prevTotal" class="font-mono text-teal-700 text-base">₹0.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Terms & Conditions / Signoff -->
+                    <div class="mt-8 pt-4 border-t border-slate-100 grid grid-cols-2 gap-4 items-end">
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">TERMS & CONDITIONS</p>
+                            <p id="prevNotes" class="text-[10px] text-slate-500 whitespace-pre-wrap leading-relaxed">Terms text here</p>
+                        </div>
+                        <div class="text-right">
+                            <div class="h-12 flex items-end justify-end">
+                                <span class="font-serif italic text-slate-400 text-sm border-b border-slate-300 px-4 pb-1">Authorized Signatory</span>
+                            </div>
+                            <p class="text-[10px] font-bold text-slate-700 mt-1 uppercase tracking-wider">For TRAINING HUMANS</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Tagline -->
+                <div class="mt-12 text-center text-[10px] text-slate-400 border-t border-slate-100 pt-3">
+                    Thank you for partnering with <span class="font-semibold text-slate-600">TRAINING HUMANS</span> for your organizational growth and learning!
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal: Saved Invoices History -->
+    <div id="historyModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
+        <div class="bg-white rounded-2xl max-w-2xl w-full mx-4 shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[80vh]">
+            <div class="p-4 sm:p-6 bg-slate-900 text-white flex justify-between items-center">
+                <h3 class="font-bold text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-teal-400"></i> Saved Invoices History
+                </h3>
+                <button onclick="toggleHistoryModal()" class="text-slate-400 hover:text-white text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="p-4 sm:p-6 overflow-y-auto flex-1">
+                <div id="historyList" class="space-y-3">
+                    <!-- History items rendered dynamically -->
+                </div>
+            </div>
+            <div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
+                <span>Invoices saved locally in browser cache.</span>
+                <button onclick="clearHistory()" class="text-red-600 hover:text-red-800 font-semibold">Clear All History</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        // Default State & Configuration
+        let seqCounter = parseInt(localStorage.getItem('TH_INV_SEQ') || '1');
+        let savedClients = JSON.parse(localStorage.getItem('TH_CLIENTS') || '[]');
+        let savedInvoices = JSON.parse(localStorage.getItem('TH_INVOICES_HISTORY') || '[]');
+        let customLogoBase64 = localStorage.getItem('TH_CUSTOM_LOGO') || null;
+
+        // Line item template model
+        let lineItems = [
+            {
+                title: "Executive Leadership & Human Skills Workshop",
+                desc: "2-Day Intensive Corporate Workshop for Senior Management (20 Participants)",
+                qty: 2,
+                rate: 45000
+            },
+            {
+                title: "Training Courseware & Digital Study Material",
+                desc: "Comprehensive workbook licensing & digital toolkits",
+                qty: 20,
+                rate: 1200
+            }
+        ];
+
+        // Initialize App on DOM Load
+        window.addEventListener('DOMContentLoaded', () => {
+            initDates();
+            updateSeqBadge();
+            generateInvoiceNumber();
+            renderLineItems();
+            populateClientPresets();
+            if (customLogoBase64) {
+                applyLogo(customLogoBase64);
+            }
+            updatePreview();
+        });
+
+        // Initialize Default Dates (Today & Today + 15 days)
+        function initDates() {
+            const today = new Date();
+            const due = new Date();
+            due.setDate(today.getDate() + 15);
+
+            document.getElementById('invDate').value = today.toISOString().split('T')[0];
+            document.getElementById('dueDate').value = due.toISOString().split('T')[0];
+        }
+
+        // Auto-Increment Invoice Sequence logic
+        function updateSeqBadge() {
+            const formattedSeq = `TH-INV-${new Date().getFullYear()}-${String(seqCounter).padStart(3, '0')}`;
+            document.getElementById('seqCounterBadge').innerText = `Next Auto: ${formattedSeq}`;
+        }
+
+        function generateInvoiceNumber(increment = false) {
+            if (increment) {
+                seqCounter++;
+                localStorage.setItem('TH_INV_SEQ', seqCounter);
+                updateSeqBadge();
+            }
+            const invNum = `TH-INV-${new Date().getFullYear()}-${String(seqCounter).padStart(3, '0')}`;
+            document.getElementById('invNumber').value = invNum;
+        }
+
+        // Line Item CRUD
+        function renderLineItems() {
+            const container = document.getElementById('lineItemsContainer');
+            container.innerHTML = '';
+
+            lineItems.forEach((item, index) => {
+                const row = document.createElement('div');
+                row.className = 'p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2 relative group';
+                row.innerHTML = `
+                    <div class="flex justify-between items-center gap-2">
+                        <input type="text" placeholder="Course / Workshop Title" value="${escapeHtml(item.title)}" oninput="updateLineItem(${index}, 'title', this.value)" class="flex-1 bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold focus:ring-1 focus:ring-teal-500 focus:outline-none">
+                        ${lineItems.length > 1 ? `
+                            <button onclick="removeLineItem(${index})" class="text-slate-400 hover:text-red-500 text-xs p-1" title="Delete Row">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                    <div>
+                        <input type="text" placeholder="Description / Date / Details" value="${escapeHtml(item.desc)}" oninput="updateLineItem(${index}, 'desc', this.value)" class="w-full bg-white border border-slate-300 rounded px-2.5 py-1 text-xs text-slate-600 focus:ring-1 focus:ring-teal-500 focus:outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[10px] text-slate-500">Qty / Hrs / Pax</label>
+                            <input type="number" min="1" step="any" value="${item.qty}" oninput="updateLineItem(${index}, 'qty', parseFloat(this.value) || 0)" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono focus:ring-1 focus:ring-teal-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-500">Unit Price (₹)</label>
+                            <input type="number" min="0" step="any" value="${item.rate}" oninput="updateLineItem(${index}, 'rate', parseFloat(this.value) || 0)" class="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs font-mono focus:ring-1 focus:ring-teal-500 focus:outline-none">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function updateLineItem(index, field, value) {
+            lineItems[index][field] = value;
+            updatePreview();
+        }
+
+        function addLineItem() {
+            lineItems.push({
+                title: "Additional Training Module",
+                desc: "Custom training session or material fee",
+                qty: 1,
+                rate: 5000
+            });
+            renderLineItems();
+            updatePreview();
+        }
+
+        function removeLineItem(index) {
+            lineItems.splice(index, 1);
+            renderLineItems();
+            updatePreview();
+        }
+
+        // Live Document Preview Calculation & Synchronization
+        function updatePreview() {
+            // Text values mapping
+            document.getElementById('prevInvNumber').innerText = document.getElementById('invNumber').value || 'TH-INV-000';
+            document.getElementById('prevInvDate').innerText = formatDate(document.getElementById('invDate').value);
+            document.getElementById('prevDueDate').innerText = formatDate(document.getElementById('dueDate').value);
+            document.getElementById('prevPayTerms').innerText = document.getElementById('payTerms').value || 'Due on receipt';
+
+            document.getElementById('prevFromName').innerText = document.getElementById('fromName').value || 'TRAINING HUMANS';
+            document.getElementById('prevFromAddress').innerText = document.getElementById('fromAddress').value || '';
+            document.getElementById('prevFromEmail').innerText = document.getElementById('fromEmail').value || '';
+            document.getElementById('prevFromPhone').innerText = document.getElementById('fromPhone').value || '';
+            
+            const fromGstVal = document.getElementById('fromGst').value;
+            if(fromGstVal.trim()) {
+                document.getElementById('prevFromGstWrap').style.display = 'block';
+                document.getElementById('prevFromGst').innerText = fromGstVal;
+            } else {
+                document.getElementById('prevFromGstWrap').style.display = 'none';
+            }
+
+            document.getElementById('prevToName').innerText = document.getElementById('toName').value || 'Client Name';
+            document.getElementById('prevToAddress').innerText = document.getElementById('toAddress').value || 'Client Address';
+            document.getElementById('prevToPhone').innerText = document.getElementById('toPhone').value || '';
+            document.getElementById('prevToGst').innerText = document.getElementById('toGst').value || 'N/A';
+
+            document.getElementById('prevBankDetails').innerText = document.getElementById('bankDetails').value || '';
+            document.getElementById('prevNotes').innerText = document.getElementById('notes').value || '';
+
+            // Table rendering and totals calculation
+            const tbody = document.getElementById('prevTableBody');
+            tbody.innerHTML = '';
+
+            let subtotal = 0;
+
+            lineItems.forEach((item, idx) => {
+                const itemQty = parseFloat(item.qty) || 0;
+                const itemRate = parseFloat(item.rate) || 0;
+                const lineTotal = itemQty * itemRate;
+                subtotal += lineTotal;
+
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-slate-100';
+                tr.innerHTML = `
+                    <td class="py-2.5 px-2 text-slate-400 font-mono">${idx + 1}</td>
+                    <td class="py-2.5 px-2">
+                        <div class="font-bold text-slate-800">${escapeHtml(item.title)}</div>
+                        <div class="text-[11px] text-slate-500 mt-0.5">${escapeHtml(item.desc)}</div>
+                    </td>
+                    <td class="py-2.5 px-2 text-center font-mono">${itemQty}</td>
+                    <td class="py-2.5 px-2 text-right font-mono">${formatCurrency(itemRate)}</td>
+                    <td class="py-2.5 px-2 text-right font-mono font-semibold text-slate-800">${formatCurrency(lineTotal)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Discount Math
+            const discountType = document.getElementById('discountType').value;
+            const discountValInput = parseFloat(document.getElementById('discountVal').value) || 0;
+            let discountAmount = 0;
+
+            if (discountType === 'percent') {
+                discountAmount = (subtotal * discountValInput) / 100;
+            } else {
+                discountAmount = discountValInput;
+            }
+
+            const discountedSubtotal = Math.max(0, subtotal - discountAmount);
+
+            // Tax Math
+            const taxSelect = document.getElementById('taxType').value;
+            let taxRate = 0;
+            let taxLabelText = "GST";
+
+            if (taxSelect === '18_gst') {
+                taxRate = 0.18;
+                taxLabelText = "GST @ 18% (CGST 9% + SGST 9%)";
+            } else if (taxSelect === '18_igst') {
+                taxRate = 0.18;
+                taxLabelText = "IGST @ 18%";
+            } else if (taxSelect === '12_gst') {
+                taxRate = 0.12;
+                taxLabelText = "GST @ 12%";
+            } else if (taxSelect === '5_gst') {
+                taxRate = 0.05;
+                taxLabelText = "GST @ 5%";
+            } else {
+                taxRate = 0;
+                taxLabelText = "Tax Exempt (0%)";
+            }
+
+            const taxAmount = discountedSubtotal * taxRate;
+            const grandTotal = discountedSubtotal + taxAmount;
+
+            // Update UI Totals
+            document.getElementById('prevSubtotal').innerText = formatCurrency(subtotal);
+
+            const prevDiscountRow = document.getElementById('prevDiscountRow');
+            if (discountAmount > 0) {
+                prevDiscountRow.classList.remove('hidden');
+                document.getElementById('prevDiscountLabel').innerText = `Discount ${discountType === 'percent' ? `(${discountValInput}%)` : ''}`;
+                document.getElementById('prevDiscountVal').innerText = `-${formatCurrency(discountAmount)}`;
+            } else {
+                prevDiscountRow.classList.add('hidden');
+            }
+
+            document.getElementById('prevTaxLabel').innerText = taxLabelText;
+            document.getElementById('prevTaxVal').innerText = formatCurrency(taxAmount);
+            document.getElementById('prevTotal').innerText = formatCurrency(grandTotal);
+        }
+
+        // Custom Logo Handling
+        function handleLogoUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (evt) {
+                    customLogoBase64 = evt.target.result;
+                    localStorage.setItem('TH_CUSTOM_LOGO', customLogoBase64);
+                    applyLogo(customLogoBase64);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function applyLogo(src) {
+            const img = document.getElementById('previewLogoImg');
+            const txt = document.getElementById('previewLogoText');
+            img.src = src;
+            img.classList.remove('hidden');
+            txt.classList.add('hidden');
+        }
+
+        function resetDefaultLogo() {
+            localStorage.removeItem('TH_CUSTOM_LOGO');
+            customLogoBase64 = null;
+            const img = document.getElementById('previewLogoImg');
+            const txt = document.getElementById('previewLogoText');
+            img.src = '';
+            img.classList.add('hidden');
+            txt.classList.remove('hidden');
+        }
+
+        // Client Management Presets
+        function saveCurrentClient() {
+            const clientName = document.getElementById('toName').value.trim();
+            if (!clientName) {
+                alert("Please enter a Client Name before saving.");
+                return;
+            }
+
+            const clientData = {
+                id: Date.now(),
+                name: clientName,
+                address: document.getElementById('toAddress').value,
+                email: document.getElementById('toEmail').value,
+                phone: document.getElementById('toPhone').value,
+                gst: document.getElementById('toGst').value
+            };
+
+            const existingIdx = savedClients.findIndex(c => c.name.toLowerCase() === clientName.toLowerCase());
+            if (existingIdx >= 0) {
+                savedClients[existingIdx] = clientData;
+            } else {
+                savedClients.push(clientData);
+            }
+
+            localStorage.setItem('TH_CLIENTS', JSON.stringify(savedClients));
+            populateClientPresets();
+            alert(`Client "${clientName}" saved successfully!`);
+        }
+
+        function populateClientPresets() {
+            const select = document.getElementById('clientPresetSelect');
+            select.innerHTML = '<option value="">-- Select Client Preset --</option>';
+            savedClients.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = `${c.name} (${c.email || 'No Email'})`;
+                select.appendChild(opt);
+            });
+        }
+
+        function loadSavedClient(id) {
+            if (!id) return;
+            const client = savedClients.find(c => c.id == id);
+            if (client) {
+                document.getElementById('toName').value = client.name || '';
+                document.getElementById('toAddress').value = client.address || '';
+                document.getElementById('toEmail').value = client.email || '';
+                document.getElementById('toPhone').value = client.phone || '';
+                document.getElementById('toGst').value = client.gst || '';
+                updatePreview();
+            }
+        }
+
+        // Invoice History & Local Storage Management
+        function saveInvoiceToHistory() {
+            const invNum = document.getElementById('invNumber').value;
+            const invData = {
+                invNumber: invNum,
+                date: document.getElementById('invDate').value,
+                dueDate: document.getElementById('dueDate').value,
+                clientName: document.getElementById('toName').value || 'Unnamed Client',
+                total: document.getElementById('prevTotal').innerText,
+                lineItems: [...lineItems],
+                toAddress: document.getElementById('toAddress').value,
+                toEmail: document.getElementById('toEmail').value,
+                toPhone: document.getElementById('toPhone').value,
+                toGst: document.getElementById('toGst').value,
+                timestamp: new Date().toISOString()
+            };
+
+            const existingIdx = savedInvoices.findIndex(i => i.invNumber === invNum);
+            if (existingIdx >= 0) {
+                savedInvoices[existingIdx] = invData;
+            } else {
+                savedInvoices.unshift(invData);
+            }
+
+            localStorage.setItem('TH_INVOICES_HISTORY', JSON.stringify(savedInvoices));
+            alert(`Invoice ${invNum} saved successfully to local cache.`);
+        }
+
+        function createNewInvoice() {
+            if (confirm("Create new invoice? Current details will be incremented to next sequence number.")) {
+                generateInvoiceNumber(true);
+                initDates();
+                lineItems = [
+                    {
+                        title: "Custom Corporate Training Workshop",
+                        desc: "Interactive skill development program",
+                        qty: 1,
+                        rate: 25000
+                    }
+                ];
+                renderLineItems();
+                updatePreview();
+            }
+        }
+
+        function toggleHistoryModal() {
+            const modal = document.getElementById('historyModal');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                renderHistoryList();
+            }
+        }
+
+        function renderHistoryList() {
+            const list = document.getElementById('historyList');
+            if (savedInvoices.length === 0) {
+                list.innerHTML = `<div class="text-center py-8 text-slate-400 text-sm">No saved invoices found.</div>`;
+                return;
+            }
+
+            list.innerHTML = savedInvoices.map((inv, idx) => `
+                <div class="p-3 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-between transition">
+                    <div>
+                        <div class="font-mono font-bold text-teal-800 text-sm">${escapeHtml(inv.invNumber)}</div>
+                        <div class="text-xs font-semibold text-slate-800">${escapeHtml(inv.clientName)}</div>
+                        <div class="text-[10px] text-slate-400">${formatDate(inv.date)} • ${inv.total}</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="loadInvoiceFromHistory(${idx})" class="px-3 py-1 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-semibold transition">
+                            Load
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function loadInvoiceFromHistory(index) {
+            const inv = savedInvoices[index];
+            if (inv) {
+                document.getElementById('invNumber').value = inv.invNumber;
+                document.getElementById('invDate').value = inv.date;
+                document.getElementById('dueDate').value = inv.dueDate;
+                document.getElementById('toName').value = inv.clientName;
+                document.getElementById('toAddress').value = inv.toAddress || '';
+                document.getElementById('toEmail').value = inv.toEmail || '';
+                document.getElementById('toPhone').value = inv.toPhone || '';
+                document.getElementById('toGst').value = inv.toGst || '';
+                
+                if (inv.lineItems && inv.lineItems.length > 0) {
+                    lineItems = [...inv.lineItems];
+                    renderLineItems();
+                }
+
+                updatePreview();
+                toggleHistoryModal();
+            }
+        }
+
+        function clearHistory() {
+            if (confirm("Are you sure you want to clear all invoice history from this browser?")) {
+                savedInvoices = [];
+                localStorage.removeItem('TH_INVOICES_HISTORY');
+                renderHistoryList();
+            }
+        }
+
+        // Helper Utilities
+        function formatCurrency(num) {
+            return new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+                maximumFractionDigits: 2
+            }).format(num);
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
